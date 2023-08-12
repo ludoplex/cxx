@@ -30,15 +30,15 @@ class CXX:
         # Trim all arguments, and remove the empty ones
         args = [arg.strip() for arg in args if arg.strip()]
         if self.directory:
-            cmd = self.command + " -C " + self.directory + " " + " ".join(args)
+            cmd = f"{self.command} -C {self.directory} " + " ".join(args)
         else:
-            cmd = self.command + " " + " ".join(args)
+            cmd = f"{self.command} " + " ".join(args)
         if dummy or verbose:
             print(cmd)
-            if dummy:
-                return
+        if dummy:
+            return
         if os.system(cmd) != 0:
-            print("ERROR: " + cmd, file=sys.stderr)
+            print(f"ERROR: {cmd}", file=sys.stderr)
             sys.exit(1)
 
     def version(self):
@@ -53,7 +53,7 @@ class Figlet:
     def msg(self, message):
         if self.command:
             print()
-            os.system(self.command + " -f small " + message)
+            os.system(f"{self.command} -f small {message}")
             print()
         else:
             print('|\n|\n|  ' + message + '...\n|\n|')
@@ -79,7 +79,7 @@ def run_all(f, cxx, command, exampledir, skiplist, dummyrun=False):
             # skip, if needed
             if projectname in skiplist:
                 if command not in ["clean", "fastclean"]:
-                    print("Skipping " + projectname + " at " + command, flush=True)
+                    print(f"Skipping {projectname} at {command}", flush=True)
                 continue
 
             # special cases
