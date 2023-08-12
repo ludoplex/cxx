@@ -106,31 +106,33 @@ def split_cxxflags(given_cxxflags, win64):
     encountered_framework = False
 
     # Note that -Wl,-framework may appear in the given_cxxflags
-    for flag in [f.strip() for f in given_cxxflags.replace(" -framework ", " -framework" + SPECIAL_SYMBOLS).split(" ")]:
+    for flag in [f.strip() for f in given_cxxflags.replace(" -framework ", f" -framework{SPECIAL_SYMBOLS}").split(" ")]:
         if flag.startswith("-I"):
-            if " " + flag[2:] + " " not in includes:
-                includes += flag[2:] + " "
+            if f" {flag[2:]} " not in includes:
+                includes += f"{flag[2:]} "
         elif flag.startswith("-D"):
-            if " " + flag[2:] + " " not in defines:
-                defines += flag[2:] + " "
+            if f" {flag[2:]} " not in defines:
+                defines += f"{flag[2:]} "
         elif flag.startswith("-l"):
-            if " " + flag[2:] + " " not in libs:
-                libs += flag[2:] + " "
+            if f" {flag[2:]} " not in libs:
+                libs += f"{flag[2:]} "
         elif flag.startswith("-L"):
-            if " " + flag + " " not in libpaths:
-                libpaths += flag + " "
+            if f" {flag} " not in libpaths:
+                libpaths += f"{flag} "
         elif flag.startswith("-Wl,"):
-            if (" " + flag + " " not in linkflags) and not (win64 and "-framework" in flag):
-                linkflags += flag + " "
+            if f" {flag} " not in linkflags and not (
+                win64 and "-framework" in flag
+            ):
+                linkflags += f"{flag} "
         elif flag.startswith("-p"):
-            if " " + flag + " " not in other:
-                other += flag + " "
+            if f" {flag} " not in other:
+                other += f"{flag} "
         elif flag.lower().startswith("-f"):
-            new_flag = flag.replace("-framework" + SPECIAL_SYMBOLS, "-framework ")
-            if not win64 and (" " + new_flag + " " not in linkflags):
+            new_flag = flag.replace(f"-framework{SPECIAL_SYMBOLS}", "-framework ")
+            if not win64 and f" {new_flag} " not in linkflags:
                 if "-framework" in new_flag:
                     encountered_framework = True
-                linkflags += new_flag + " "
+                linkflags += f"{new_flag} "
             elif win64:
                 new_dll = new_flag[len("-framework "):] + ".dll"
                 # new_dll now contains a case-insensitive name. See if there is .dll with the same name but different casing, then use that
@@ -138,16 +140,19 @@ def split_cxxflags(given_cxxflags, win64):
                     if dll.lower() == new_dll.lower():
                         new_dll = dll
                         break
-                new_linkflag = "-l" + new_dll[:-4]
-                if " " + new_linkflag + " " not in linkflags and new_linkflag != "-lFrameworks":
-                    linkflags += new_linkflag + " "
+                new_linkflag = f"-l{new_dll[:-4]}"
+                if (
+                    f" {new_linkflag} " not in linkflags
+                    and new_linkflag != "-lFrameworks"
+                ):
+                    linkflags += f"{new_linkflag} "
                 if "-L." not in linkflags:
                     linkflags += "-L. "
         elif flag.startswith("-stdlib"):
-            if " " + flag + " " not in linkflags:
-                linkflags += flag + " "
-            if " " + flag + " " not in other:
-                other += flag + " "
+            if f" {flag} " not in linkflags:
+                linkflags += f"{flag} "
+            if f" {flag} " not in other:
+                other += f"{flag} "
         elif not win64 and encountered_framework and (not flag.startswith("-")) and ("." not in flag):
             # the pkg-config output for Qt libraries list several frameworks after a single "-framework" parameter
             new_flag = "-framework " + flag
@@ -192,16 +197,16 @@ def generic_include_path_to_cxxflags(include_path):
             return ""
     # If a library matches the name of the directory in the system include directory, link with that
     for package in packages:
-        for possible_lib_name in ["lib" + package + ".so", "lib" + package.upper() + ".so"]:
+        for possible_lib_name in [f"lib{package}.so", f"lib{package.upper()}.so"]:
             for libpath in ["/usr/lib", "/usr/lib/x86_64-linux-gnu", "/usr/local/lib", "/usr/pkg/lib"]:
                 if os.path.exists(libpath) and os.path.exists(os.path.join(libpath, possible_lib_name)):
                     # Check if the same library with a ++ suffix also exists
                     if os.path.exists(os.path.join(libpath, possible_lib_name.replace(".so", "++.so"))):
                         # Found two good candidates, the regular ".so" lib and the "++.so" lib
                         # Example: -lfcgi -lfcgi++
-                        return "-l" + possible_lib_name[3:-3] + " -l" + possible_lib_name[3:-3] + "++"
+                        return f"-l{possible_lib_name[3:-3]} -l{possible_lib_name[3:-3]}++"
                     # Found a good candidate, matching the name of the package that owns the include file. Try that.
-                    return "-l" + possible_lib_name[3:-3]
+                    return f"-l{possible_lib_name[3:-3]}"
     # Out of ideas
     return ""
 
@@ -213,7 +218,7 @@ def arch_recommend_package(missing_include):
     # Check if the given include file is missing from the system
     if not os.path.exists(missing_include):
         if which("pkgfile"):
-            cmd = "LC_ALL=C pkgfile " + missing_include
+            cmd = f"LC_ALL=C pkgfile {missing_include}"
             try:
                 packages = popen2(cmd)[1].read().strip().split("\n")
             except OSError:
@@ -244,17 +249,20 @@ def arch_include_path_to_cxxflags(include_path):
     if not os.path.exists(include_path):
         return ""
     # Find the package that owns the include directory in question
-    cmd = 'LC_ALL=C /usr/bin/pacman -Qo -- ' + include_path + ' | /usr/bin/cut -d" " -f5'
+    cmd = f'LC_ALL=C /usr/bin/pacman -Qo -- {include_path} | /usr/bin/cut -d" " -f5'
     try:
         package = popen2(cmd)[1].read().strip()
     except OSError:
         package = ""
     if not package:
-        print("error: No package owns: " + include_path)
+        print(f"error: No package owns: {include_path}")
         exit(1)
     if package in SKIP_PACKAGES:
         return ""
-    cmd = '/usr/bin/pacman -Ql -- ' + package + ' | /usr/bin/grep "\.pc$" | /usr/bin/cut -d" " -f2-'
+    cmd = (
+        f'/usr/bin/pacman -Ql -- {package}'
+        + ' | /usr/bin/grep "\.pc$" | /usr/bin/cut -d" " -f2-'
+    )
     if package in cached_pc_files:
         pc_files = cached_pc_files[package]
     else:
@@ -269,26 +277,30 @@ def arch_include_path_to_cxxflags(include_path):
         # Example: Extract "boost_filesystem" from "/usr/include/boost/filesystem.h"
         booststyle = os.path.splitext("_".join(include_path.split("/")[-2:]))[0]
         for possible_lib_name in [package, booststyle, package.upper(), os.path.splitext(os.path.basename(include_path))[0]]:
-            if os.path.exists(os.path.join(libpath, "lib" + possible_lib_name + ".so")):
+            if os.path.exists(
+                os.path.join(libpath, f"lib{possible_lib_name}.so")
+            ):
                 # Found a good candidate, matching the name of the package that owns the include file. Try that.
-                retval = "-l" + possible_lib_name
+                retval = f"-l{possible_lib_name}"
                 if os.path.exists(os.path.dirname(include_path)):
                     # Also found an include directory
-                    retval += " -I" + os.path.dirname(include_path)
+                    retval += f" -I{os.path.dirname(include_path)}"
                 # TODO: Add the check for "++" libs to the other distros as well
-                if os.path.exists(os.path.join(libpath, "lib" + possible_lib_name + "++.so")):
+                if os.path.exists(
+                    os.path.join(libpath, f"lib{possible_lib_name}++.so")
+                ):
                     # Also found a ++.so file
-                    retval += " -l" + possible_lib_name + "++"
+                    retval += f" -l{possible_lib_name}++"
                 return retval
         # Did not find a suitable library file, nor .pc file
         if package not in ["boost", "qt5-base", "qt6-base"]:  # these are "special"
-            print("WARNING: No pkg-config files for: " + package)
+            print(f"WARNING: No pkg-config files for: {package}")
         return ""
     # TODO: Consider interpreting the .pc files directly, for speed
     all_cxxflags = ""
     for pc_file in pc_files:
         pc_name = os.path.splitext(os.path.basename(pc_file))[0]
-        cmd = '/usr/bin/pkg-config --cflags --libs ' + pc_name + ' 2>/dev/null'
+        cmd = f'/usr/bin/pkg-config --cflags --libs {pc_name} 2>/dev/null'
         # Get the cxxflags as defined by pkg-config
         cxxflags = ""
         try:
@@ -303,11 +315,11 @@ def arch_include_path_to_cxxflags(include_path):
             # Output the pkg-config command
             print("warning: this command gave no results:\n" + cmd)
             # Just guess the library flag
-            cxxflags = "-l" + pc_name
+            cxxflags = f"-l{pc_name}"
         if cxxflags:
             for cxxflag in cxxflags.split(" "):
                 if cxxflag not in all_cxxflags.split(" "):
-                    all_cxxflags += " " + cxxflag
+                    all_cxxflags += f" {cxxflag}"
 
     return all_cxxflags.strip()
 
@@ -320,8 +332,7 @@ def freebsd_recommend_package(missing_include):
     if not os.path.exists(missing_include):
         if exe("/usr/local/bin/curl"):
             last_part = os.path.basename(missing_include)
-            cmd = '/usr/local/bin/curl -s "http://www.secnetix.de/tools/porgle/porgle.py?plst=1&q=' + quote(last_part) + \
-                '&Search=Search" | grep "td " | grep small | cut -d">" -f4- | cut -d"-" -f1'
+            cmd = f'/usr/local/bin/curl -s "http://www.secnetix.de/tools/porgle/porgle.py?plst=1&q={quote(last_part)}&Search=Search" | grep "td " | grep small | cut -d">" -f4- | cut -d"-" -f1'
             try:
                 packages = [x.strip() for x in popen2(cmd)[1].read().strip().split("\n")
                             if x.strip() and x.strip() not in SKIP_PACKAGES]
@@ -345,20 +356,20 @@ def freebsd_include_path_to_cxxflags(include_path):
     if not os.path.exists(include_path):
         return ""
     # Find the package that owns the include directory in question
-    cmd = '/usr/sbin/pkg which -q ' + include_path + ' | cut -d- -f1-'
+    cmd = f'/usr/sbin/pkg which -q {include_path} | cut -d- -f1-'
     try:
         package = popen2(cmd)[1].read().strip()
     except OSError:
         package = ""
     if not package:
-        print("error: No package owns: " + include_path)
+        print(f"error: No package owns: {include_path}")
         exit(1)
     if package in SKIP_PACKAGES:
         return ""
     if package in cached_pc_files:
         pc_files = cached_pc_files[package]
     else:
-        cmd = "/usr/sbin/pkg list " + package + " | /usr/bin/grep '\.pc$'"
+        cmd = f"/usr/sbin/pkg list {package}" + " | /usr/bin/grep '\.pc$'"
         try:
             pc_files = [x for x in popen2(cmd)[1].read().strip().split(os.linesep) if x]
             cached_pc_files[package] = pc_files
@@ -370,21 +381,23 @@ def freebsd_include_path_to_cxxflags(include_path):
         # Example: Extract "boost_filesystem" from "/usr/include/boost/filesystem.h"
         booststyle = os.path.splitext("_".join(include_path.split("/")[-2:]))[0]
         for possible_lib_name in [package, booststyle, package.upper(), os.path.splitext(os.path.basename(include_path))[0]]:
-            if os.path.exists(os.path.join(libpath, "lib" + possible_lib_name + ".so")):
+            if os.path.exists(
+                os.path.join(libpath, f"lib{possible_lib_name}.so")
+            ):
                 # Found a good candidate, matching the name of the package that owns the include file. Try that.
                 if os.path.exists(os.path.dirname(include_path)):
                     # Also found an include directory
-                    return "-l" + possible_lib_name + " -I" + os.path.dirname(include_path)
-                return "-l" + possible_lib_name
+                    return f"-l{possible_lib_name} -I{os.path.dirname(include_path)}"
+                return f"-l{possible_lib_name}"
         # Did not find a suitable library file, nor .pc file
         if package not in ["boost", "qt5-base", "qt6-base"]:  # these are "special"
-            print("WARNING: No pkg-config files for: " + package)
+            print(f"WARNING: No pkg-config files for: {package}")
         return ""
     # TODO: Consider interpreting the .pc files directly, for speed
     all_cxxflags = ""
     for pc_file in pc_files:
         pc_name = os.path.splitext(os.path.basename(pc_file))[0]
-        cmd = '/usr/local/bin/pkg-config --cflags --libs ' + pc_name + ' 2>/dev/null'
+        cmd = f'/usr/local/bin/pkg-config --cflags --libs {pc_name} 2>/dev/null'
         # Get the cxxflags as defined by pkg-config
         cxxflags = ""
         try:
@@ -400,11 +413,11 @@ def freebsd_include_path_to_cxxflags(include_path):
             # Output the pkg-config command
             print("warning: this command gave no results:\n" + cmd)
             # Just guess the library flag
-            cxxflags = "-l" + pc_name
+            cxxflags = f"-l{pc_name}"
         if cxxflags:
             for cxxflag in cxxflags.split(" "):
                 if cxxflag not in all_cxxflags.split(" "):
-                    all_cxxflags += " " + cxxflag
+                    all_cxxflags += f" {cxxflag}"
     return all_cxxflags.strip()
 
 
